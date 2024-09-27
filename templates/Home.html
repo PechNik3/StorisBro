@@ -1,0 +1,16 @@
+{% extends 'base.html' %}
+
+{% block content %}
+    {% if user.is_authenticated %}
+        <h3>Welcome {{ user.username }} !!!</h3>
+        <br/><br/>
+    {% else %}
+        <div class="social">
+            <ul>
+                <li class="vk">
+                    <a href="{% url 'social:begin' 'vk-oauth2' %}">Войти через ВКонтакте</a>
+                </li>
+            </ul>
+        </div>
+    {% endif %}
+{% endblock content %}
