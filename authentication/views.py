@@ -1,7 +1,5 @@
 import secrets
-
 from rest_framework_simplejwt.views import TokenObtainPairView
-
 from .tasks import user_created, password_change_code, email_change_code
 from django.conf import settings
 from django.core.mail import send_mail
@@ -15,34 +13,35 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework import permissions
 import redis
-from django.contrib.auth.views import LoginView
 from rest_framework.authentication import TokenAuthentication
 from rest_framework import exceptions
 from rest_framework_simplejwt.authentication import JWTAuthentication
-from django.http import HttpResponse
 from django.contrib.auth.hashers import make_password
 import requests
-
 import random
 import string
-
 from .models import User
 from .serializers import UserLoginSerializer, UserProfileSerializer, UserCreateSerializer, UserSerializer
 from django_ratelimit.decorators import ratelimit
 from django.utils.decorators import method_decorator
+from .forms import CustomUserCreationForm  # Добавлено
 
 
 class Home(TemplateView):
     template_name = "Home.html"
 
 
-class UserCreateAPIView(CreateAPIView):
-    queryset = User.objects.all()
-    serializer_class = UserCreateSerializer
+class UserCreateAPIView(APIView):
+    def post(self, request, *args, **kwargs):
+        form = CustomUserCreationForm(request.data)
+        if form.is_valid():
+            form.save()
+            return Response({"message": "Пользователь создан"}, status=status.HTTP_201_CREATED)
+        return Response(form.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 class BannedUserAPIView(UpdateAPIView):
-    """Блокирова пользователя"""
+    """Блокировка пользователя"""
     queryset = User.objects.all()
     serializer_class = UserSerializer
 
@@ -73,30 +72,18 @@ class SearchEmail(APIView):
 class ObtainTokenView(TokenObtainPairView):
     serializer_class = UserLoginSerializer
 
-    # @method_decorator(ratelimit(key='user_or_ip', rate='5/m'))
     def post(self, request, *args, **kwargs):
         response = super().post(request, *args, **kwargs)
-
-        # Проверка наличия ключа 'user' в response.data
         user = response.data.get('user') if response.data else None
-        print(user)
         if user and not user.get('is_active'):
-            print("Я запускаюсь")
             return Response({'error': 'Аккаунт не активирован.'}, status=status.HTTP_401_UNAUTHORIZED)
-
         return response
 
 
 class UserProfileAPIView(RetrieveUpdateDestroyAPIView):
     queryset = User.objects.all()
     serializer_class = UserProfileSerializer
-    # permission_classes = [permissions.IsAuthenticated]
     authentication_classes = [JWTAuthentication]
-
-    # def get(self, request, *args, **kwargs):
-    #     token = request.auth
-    #     print(f"Received token: {token}")
-    #     return Response({"message": "Your response message"}, status=status.HTTP_200_OK)
 
     def get_object(self):
         if self.request.user.is_authenticated:
@@ -106,12 +93,10 @@ class UserProfileAPIView(RetrieveUpdateDestroyAPIView):
 
     def perform_update(self, serializer):
         instance = serializer.save()
-
         confirmation(instance)
 
     def update(self, request, *args, **kwargs):
         response = super().update(request, *args, **kwargs)
-
         return response
 
 
@@ -144,14 +129,12 @@ def confirmation(user):
     confirmation_code = secrets.token_urlsafe(6)
     redis_connection = redis.StrictRedis(host=settings.REDIS_HOST, port=settings.REDIS_PORT, db=settings.REDIS_DB)
     redis_connection.set(f"confirmation_code:{user.id}", confirmation_code)
-
     user_created.delay(user.id, confirmation_code)
 
 
 @csrf_exempt
 def activate_account(request, user_id, confirmation_code):
     user = get_object_or_404(User, id=user_id)
-
     redis_connection = redis.StrictRedis(host=settings.REDIS_HOST, port=settings.REDIS_PORT, db=settings.REDIS_DB)
     stored_code = redis_connection.get(f"confirmation_code:{user.id}")
 
@@ -162,126 +145,3 @@ def activate_account(request, user_id, confirmation_code):
         return JsonResponse({'message': 'Аккаунт успешно активирован.'}, status=status.HTTP_200_OK)
     else:
         return JsonResponse({'error': 'Неверный код подтверждения.'}, status=status.HTTP_401_UNAUTHORIZED)
-
-
-@csrf_exempt
-def confirmation_login(user):
-    confirmation_code = secrets.token_urlsafe(6)
-    redis_connection = redis.StrictRedis(host=settings.REDIS_HOST, port=settings.REDIS_PORT, db=settings.REDIS_DB)
-    redis_connection.set(f"confirmation_code:{user.id}", confirmation_code)
-
-    user_created.delay(user.id, confirmation_code)
-
-
-@csrf_exempt
-def activate_logged_in_with_new_device(request, user_id, confirmation_code):
-    user = get_object_or_404(User, id=user_id)
-
-    redis_connection = redis.StrictRedis(host=settings.REDIS_HOST, port=settings.REDIS_PORT, db=settings.REDIS_DB)
-    stored_code = redis_connection.get(f"confirmation_code:{user.id}")
-
-    if stored_code.decode('utf-8') == confirmation_code:
-        user.logged_in_with_new_device = True
-        user.save()
-        redis_connection.delete(f"confirmation_code:{user.id}")
-        return JsonResponse({'message': 'Аккаунт успешно активирован.'}, status=status.HTTP_200_OK)
-    else:
-        return JsonResponse({'error': 'Неверный код подтверждения.'}, status=status.HTTP_401_UNAUTHORIZED)
-
-
-# смена пароля и смена эл.почты в профиле
-def generate_code(length):
-    code = ''.join(random.choices(string.digits, k=length))
-    return code
-
-
-@csrf_exempt
-def email_change_code_func(request, email):
-    confirmation_code = generate_code(4)
-    redis_connection = redis.StrictRedis(host=settings.REDIS_HOST, port=settings.REDIS_PORT, db=settings.REDIS_DB)
-    redis_connection.set(f"confirmation_code:{email}", confirmation_code)
-
-    email_change_code.delay(email, confirmation_code)
-
-    return JsonResponse({'message': 'Код отправился'}, status=status.HTTP_200_OK)
-
-
-@csrf_exempt
-def change_email_func(request, email, new_email, confirmation_code):
-    user = get_object_or_404(User, email=email)
-
-    redis_connection = redis.StrictRedis(host=settings.REDIS_HOST, port=settings.REDIS_PORT, db=settings.REDIS_DB)
-    stored_code = redis_connection.get(f"confirmation_code:{email}")
-
-    if stored_code.decode('utf-8') == confirmation_code:
-        user.email = new_email
-        user.save()
-        redis_connection.delete(f"confirmation_code:{email}")
-        return JsonResponse({'message': 'Эл. почта изменена'}, status=status.HTTP_200_OK)
-    else:
-        return JsonResponse({'error': 'Неверный код подтверждения.'}, status=status.HTTP_401_UNAUTHORIZED)
-
-
-# смена пароля
-@csrf_exempt
-def password_change_code_func(request, email):
-    confirmation_code = generate_code(4)
-    redis_connection = redis.StrictRedis(host=settings.REDIS_HOST, port=settings.REDIS_PORT, db=settings.REDIS_DB)
-    redis_connection.set(f"confirmation_code_password:{email}", confirmation_code)
-
-    password_change_code.delay(email, confirmation_code)
-    # result = password_change_code.delay(email, confirmation_code)
-
-    return JsonResponse({'message': 'код отправлен'}, status=status.HTTP_200_OK)
-
-    # return HttpResponse("Password change code sent successfully.")
-
-
-@csrf_exempt
-def confirm_code_change_password(request, email, new_password, confirmation_code):
-    user = get_object_or_404(User, email=email)
-
-    redis_connection = redis.StrictRedis(host=settings.REDIS_HOST, port=settings.REDIS_PORT, db=settings.REDIS_DB)
-    stored_code = redis_connection.get(f"confirmation_code_password:{email}")
-
-    if stored_code.decode('utf-8') == confirmation_code:
-        user.password = make_password(new_password)
-        user.save()
-        redis_connection.delete(f"confirmation_code_password:{email}")
-        return JsonResponse({'message': 'Пароля успешно изменен.'}, status=status.HTTP_200_OK)
-    else:
-        return JsonResponse({'error': 'Ошибка при смене пароля.'}, status=status.HTTP_401_UNAUTHORIZED)
-
-
-# class VKAuthView(APIView):
-#     def post(self, request, *args, **kwargs):
-#         code = request.data.get('code')
-#         if not code:
-#             return Response({'error': 'Code not provided'}, status=status.HTTP_400_BAD_REQUEST)
-#
-#         params = {
-#             'client_id': settings.SOCIAL_AUTH_VK_OAUTH2_KEY,
-#             'client_secret': settings.SOCIAL_AUTH_VK_OAUTH2_SECRET,
-#             'redirect_uri': settings.LOGIN_REDIRECT_URL,
-#             'code': code,
-#         }
-#
-#         response = requests.get('https://oauth.vk.com/access_token', params=params)
-#
-#         if response.status_code == 200:
-#             data = response.json()
-#             access_token = data.get('access_token')
-#             refresh_token = data.get('refresh_token')
-#             user_id = data.get('user_id')
-#             vk_id = user_id
-#
-#             print(f'Полученный user_id: {user_id}')  # Логирование
-#
-#             return Response({
-#                 'access_token': access_token,
-#                 'refresh_token': refresh_token,
-#                 'user_id': user_id,
-#                 'vk_id': vk_id
-#             }, status=status.HTTP_200_OK)
-#         else:
-#             return Response({'error': 'Failed to exchange code for token'}, status=response.status_code)

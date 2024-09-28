@@ -27,7 +27,7 @@ SECRET_KEY = "django-insecure-7e&-018k=u9(&f+jigz43tcieu=)-%nc(x3s2iv!gt4272+v$0
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ['storisbro.com', '31.129.96.225']
+ALLOWED_HOSTS = ['storisbro.com', '31.129.96.225'] #для прода
 
 # Для связи с фронтендом
 CORS_ALLOWED_ORIGINS = [
@@ -71,6 +71,12 @@ INSTALLED_APPS = [
     'content.apps.ContentConfig',
 
     'statistics_for_admin_site.apps.StatisticsForAdminSiteConfig',
+    'allauth',
+    'allauth.account',
+    'allauth.socialaccount',
+    'allauth.socialaccount.providers.vk',
+    'accounts',
+
 ]
 
 MIDDLEWARE = [
@@ -106,6 +112,7 @@ WSGI_APPLICATION = 'config.wsgi.application'
 
 # Database
 # https://docs.djangoproject.com/en/5.0/ref/settings/#databases
+
 
 DATABASES = {
     'default': {
@@ -152,31 +159,47 @@ CSRF_COOKIE_SECURE = False
 
 SOCIAL_AUTH_URL_NAMESPACE = 'authentication:social'
 
+LOGIN_REDIRECT_URL = '/help'  # Куда перенаправлять после успешной авторизации
+LOGOUT_REDIRECT_URL = '/'  # Куда перенаправлять после выхода
+
+SOCIALACCOUNT_PROVIDERS = {
+    'vk': {
+        'APP': {
+            'client_id': '51786441',
+            'secret': 'Qm3t9YBP2OPGJUiiTUEZ',
+        },
+        'SCOPE': ['email', 'friends'],
+        'AUTH_PARAMS': {'v': '5.199'},
+        'METHOD': 'oauth2',
+    }
+}
+
+
 # VK OAuth settings
-SOCIAL_AUTH_VK_OAUTH2_KEY = '51786441'
-SOCIAL_AUTH_VK_OAUTH2_SECRET = 'Qm3t9YBP2OPGJUiiTUEZ'
-SOCIAL_AUTH_VK_OAUTH2_SCOPE = ['email']
-
-# URL для перенаправления после успешного входа
-LOGIN_REDIRECT_URL = '/admin/'  # Относительный путь будет лучше
-LOGOUT_REDIRECT_URL = '/'
-
-# Ошибки входа
-SOCIAL_AUTH_LOGIN_ERROR_URL = '/login-error/'
+# SOCIAL_AUTH_VK_OAUTH2_KEY = '51786441'
+# SOCIAL_AUTH_VK_OAUTH2_SECRET = 'Qm3t9YBP2OPGJUiiTUEZ'
+# SOCIAL_AUTH_VK_OAUTH2_SCOPE = ['email']
+#
+# # URL для перенаправления после успешного входа
+# LOGIN_REDIRECT_URL = '/admin/'  # Относительный путь будет лучше
+# LOGOUT_REDIRECT_URL = '/'
+#
+# # Ошибки входа
+# SOCIAL_AUTH_LOGIN_ERROR_URL = '/login-error/'
 
 # Добавляем auth pipeline, чтобы создать пользователя автоматически
-SOCIAL_AUTH_PIPELINE = (
-    'social_core.pipeline.social_auth.social_details',
-    'social_core.pipeline.social_auth.social_uid',
-    'social_core.pipeline.social_auth.auth_allowed',
-    'social_core.pipeline.social_auth.social_user',
-    'social_core.pipeline.user.get_username',
-    'social_core.pipeline.user.create_user',
-    'authentication.pipeline.log_social_token',  # логгер токена
-    'social_core.pipeline.social_auth.associate_user',
-    'social_core.pipeline.social_auth.load_extra_data',
-    'social_core.pipeline.user.user_details',
-)
+# SOCIAL_AUTH_PIPELINE = (
+#     'social_core.pipeline.social_auth.social_details',
+#     'social_core.pipeline.social_auth.social_uid',
+#     'social_core.pipeline.social_auth.auth_allowed',
+#     'social_core.pipeline.social_auth.social_user',
+#     'social_core.pipeline.user.get_username',
+#     'social_core.pipeline.user.create_user',
+#     'authentication.pipeline.log_social_token',  # логгер токена
+#     'social_core.pipeline.social_auth.associate_user',
+#     'social_core.pipeline.social_auth.load_extra_data',
+#     'social_core.pipeline.user.user_details',
+# )
 
 REST_FRAMEWORK = {
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',

@@ -1,8 +1,6 @@
 from django.urls import path, include
 from django.contrib.auth import views as auth_views
-from .views import Home, UserCreateAPIView, activate_account, ObtainTokenView, UserProfileAPIView, \
-    activate_logged_in_with_new_device, \
-    password_change_code_func, confirm_code_change_password, email_change_code_func, change_email_func, SearchEmail
+from .views import Home, UserCreateAPIView, activate_account, ObtainTokenView, UserProfileAPIView, SearchEmail
 
 app_name = 'authentication'
 
@@ -11,15 +9,8 @@ urlpatterns = [
     path('login/', ObtainTokenView.as_view(), name='token_obtain_pair'),
     path('logout/', auth_views.LogoutView.as_view(), name='logout'),
     path('activate/<int:user_id>/<str:confirmation_code>/', activate_account, name='activate_account'),
-    path('activate_login/<int:user_id>/<str:confirmation_code>/', activate_logged_in_with_new_device,
-         name='activate_login'),
-    path('password_change/<str:email>/', password_change_code_func),
-    path('password_code_confirm/<str:email>/<str:new_password>/<str:confirmation_code>/', confirm_code_change_password),
+    # Удалён маршрут для activate_logged_in_with_new_device
     path('profile/', UserProfileAPIView.as_view()),
-    path('social-auth/', include('social_django.urls', namespace='social')),
     path('home/', Home.as_view(), name='home'),
-
     path('check_email/<str:email>/', SearchEmail.as_view()),
-    path('change_email/<str:email>/', email_change_code_func),
-    path('change_email/<str:email>/<str:new_email>/<str:confirmation_code>/', change_email_func)
 ]

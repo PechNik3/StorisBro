@@ -1,6 +1,7 @@
 from django.contrib.auth.models import PermissionsMixin, Group, Permission
 from django.db import models
 from django.contrib.auth.base_user import BaseUserManager, AbstractBaseUser
+from django.db import models
 import secrets
 
 
@@ -50,3 +51,10 @@ class User(AbstractBaseUser, PermissionsMixin):
     objects = UserManager()
 
     USERNAME_FIELD = 'email'
+
+
+class AllowedEmail(models.Model):
+    email = models.EmailField(unique=True, verbose_name="Разрешённый email")
+
+    def __str__(self):
+        return self.email

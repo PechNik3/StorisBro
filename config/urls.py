@@ -34,7 +34,7 @@ from authentication.views import UserAPIView, ChangeProfileData, AllEmailUsersAP
 from statistics_for_admin_site.views import StatisticsAPIView
 
 urlpatterns = [
-    path('admin/', admin.site.urls),
+    path('help/', admin.site.urls),
     # Включаем пути для social-auth
     path('auth/', include('social_django.urls', namespace='social')),
     # Другие пути
